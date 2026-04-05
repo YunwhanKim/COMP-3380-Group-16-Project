@@ -120,13 +120,12 @@ class MyDatabase {
     }
 
     public void query1() {
-        // 예시 SQL: "SELECT ... FROM Game g JOIN Team_Stats ts ... GROUP BY ..."
         String sql = ""; 
         try {
             /* Statement stmt = connection.createStatement();
             ResultSet rs = stmt.executeQuery(sql);
             while (rs.next()) {
-                System.out.println(rs.getString("컬럼명"));
+                System.out.println(rs.getString(""));
             }
             */
             System.out.println("Executing Query 1... (To be implemented)");
@@ -135,9 +134,7 @@ class MyDatabase {
         }
     }
 
-    // 2. 사용자 입력(매개변수)이 필요한 쿼리 예시 골격 (SQL 인젝션 방어)
     public void query2(String inputArg) {
-        // 예시 SQL: "SELECT ... FROM Skater_Stats WHERE player_id = ?"
         String sql = ""; 
         try {
             /*
