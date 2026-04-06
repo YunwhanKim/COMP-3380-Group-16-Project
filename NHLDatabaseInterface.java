@@ -79,18 +79,18 @@ public class NHLDatabaseInterface {
         System.out.println("\n--- NHL Database Commands ---");
         System.out.println("h     - Get help");
         System.out.println("reset - Wipe all data and repopulate the database");
-        System.out.println("q1    - [Empty] Describe Query 1 here");
-        System.out.println("q2 <id> - [Empty] Describe Query 2 here (takes an argument)");
-        System.out.println("q3    - [Empty] Describe Query 3 here");
-        System.out.println("q4    - [Empty] Describe Query 4 here");
-        System.out.println("q5    - [Empty] Describe Query 5 here");
-        System.out.println("q6    - [Empty] Describe Query 6 here");
-        System.out.println("q7    - [Empty] Describe Query 7 here");
-        System.out.println("q8    - [Empty] Describe Query 8 here");
-        System.out.println("q9    - [Empty] Describe Query 9 here");
-        System.out.println("q10   - [Empty] Describe Query 10 here");
-        System.out.println("q11   - [Empty] Describe Query 11 here");
-        System.out.println("q12   - [Empty] Describe Query 12 here");
+        System.out.println("q1    - Top 15 goal-scorers of the 2019-20 season");
+        System.out.println("q2 <id> - Player lookup by name (partial) or numeric player ID");
+        System.out.println("q3    - Multi-goal game specialists (2+ goals in one game)");
+        System.out.println("q4    - Best two-way forwards (composite offense + defense score)");
+        System.out.println("q5    - Goalies who outperformed league average save percentage");
+        System.out.println("q6    - Goalies with most 'stolen' wins (won despite high shots faced)");
+        System.out.println("q7    - Best forward lines by goals scored (min 150 min ice time)");
+        System.out.println("q8    - Most-used lines in close games (final margin <= 1 goal)");
+        System.out.println("q9    - Strictest and most lenient referees by avg PIM per game");
+        System.out.println("q10   - Referee home-ice bias (home vs away PIM differential)");
+        System.out.println("q11   - Top 10 most chaotic games by total play events");
+        System.out.println("q12   - Top scorer (points) per team in the 2019-20 season");
         System.out.println("q     - Exit the program");
         System.out.println("-----------------------------\n");
     }
@@ -105,7 +105,7 @@ class MyDatabase {
             String user = "ID";
             String password = "PASSWORD";
 
-            // connection = DriverManager.getConnection(url, user, password);
+            connection = DriverManager.getConnection(url, user, password);
             System.out.println("Successfully connected to Uranium!");
             
         } catch (Exception e) {
@@ -115,52 +115,231 @@ class MyDatabase {
     }
 
     public void resetDatabase() {
-        System.out.println("Wiping and repopulating database... (To be implemented)");
+        System.out.println("Wiping and repopulating database...");
+        // TODO: 
+        System.out.println("Done.");
 
     }
-
+    // -----------------------------------------------------------------------
+    // Q1 - Top 15 goal-scorers of the 2019-20 season
+    // -----------------------------------------------------------------------
     public void query1() {
-        String sql = ""; 
+         String sql =
+            "SELECT p.first, p.last, t.abbreviation AS team, " +
+            "       SUM(ss.evenGoals + ss.shortHandedGoals + ss.powerPlayGoals) AS goals, " +
+            "       SUM(ss.assists) AS assists, " +
+            "       SUM(ss.evenGoals + ss.shortHandedGoals + ss.powerPlayGoals + ss.assists) AS points, " +
+            "       COUNT(DISTINCT ss.gameID) AS gp " +
+            "FROM Skater_Stats ss " +
+            "JOIN Players p     ON ss.playerID = p.playerID " +
+            "JOIN Team_Stats ts ON ss.gameID   = ts.gameID " +
+            "JOIN Teams t       ON ts.teamID   = t.teamID " +
+            "WHERE CAST(ss.gameID / 1000000 AS UNSIGNED) = 2019 " +
+            "GROUP BY ss.playerID, t.teamID " +
+            "ORDER BY goals DESC " +
+            "LIMIT 15";
         try {
-            /* Statement stmt = connection.createStatement();
-            ResultSet rs = stmt.executeQuery(sql);
+            PreparedStatement ps = connection.prepareStatement(sql);
+            ResultSet rs = ps.executeQuery();
+            System.out.println("\n=== Q1: Top 15 Goal-Scorers - 2019-20 Season ===");
+            System.out.printf("%-4s %-22s %-5s %5s %5s %6s %4s%n",
+                              "#", "Player", "Team", "G", "A", "Pts", "GP");
+            System.out.println("-".repeat(52));
+            int rank = 1;
             while (rs.next()) {
-                System.out.println(rs.getString(""));
+                System.out.printf("%-4d %-22s %-5s %5d %5d %6d %4d%n",
+                    rank++,
+                    rs.getString("first") + " " + rs.getString("last"),
+                    rs.getString("team"),
+                    rs.getInt("goals"),
+                    rs.getInt("assists"),
+                    rs.getInt("points"),
+                    rs.getInt("gp"));
             }
-            */
-            System.out.println("Executing Query 1... (To be implemented)");
+            System.out.println();
         } catch (Exception e) {
             e.printStackTrace(System.out);
         }
     }
-
+    // -----------------------------------------------------------------------
+    // Q2 - Player lookup by name (partial match) or numeric player ID
+    // -----------------------------------------------------------------------
     public void query2(String inputArg) {
-        String sql = ""; 
+        // Detect if argument is purely numeric -> treat as playerID
+        boolean isId = inputArg.matches("\\d+");
+        String sql;
+        if (isId) {
+            sql = "SELECT p.playerID, p.first, p.last, p.position, p.birthCountry, " +
+                  "       p.birthCity, p.birthDate, p.heightCM, p.weight, " +
+                  "       SUM(ss.evenGoals + ss.shortHandedGoals + ss.powerPlayGoals) AS career_goals, " +
+                  "       SUM(ss.assists) AS career_assists, " +
+                  "       COUNT(DISTINCT ss.gameID) AS career_gp " +
+                  "FROM Players p " +
+                  "LEFT JOIN Skater_Stats ss ON p.playerID = ss.playerID " +
+                  "WHERE p.playerID = ? " +
+                  "GROUP BY p.playerID";
+        } else {
+            sql = "SELECT p.playerID, p.first, p.last, p.position, p.birthCountry, " +
+                  "       p.birthCity, p.birthDate, p.heightCM, p.weight, " +
+                  "       SUM(ss.evenGoals + ss.shortHandedGoals + ss.powerPlayGoals) AS career_goals, " +
+                  "       SUM(ss.assists) AS career_assists, " +
+                  "       COUNT(DISTINCT ss.gameID) AS career_gp " +
+                  "FROM Players p " +
+                  "LEFT JOIN Skater_Stats ss ON p.playerID = ss.playerID " +
+                  "WHERE CONCAT(p.first, ' ', p.last) LIKE ? " +
+                  "GROUP BY p.playerID " +
+                  "ORDER BY p.last " +
+                  "LIMIT 10";
+        }
         try {
-            /*
             PreparedStatement ps = connection.prepareStatement(sql);
-            ps.setString(1, inputArg);
+            if (isId) ps.setInt(1, Integer.parseInt(inputArg));
+            else      ps.setString(1, "%" + inputArg + "%");
             ResultSet rs = ps.executeQuery();
+            System.out.println("\n=== Q2: Player Lookup - \"" + inputArg + "\" ===");
+            System.out.printf("%-10s %-22s %-4s %-12s %-18s %-12s %7s %7s %4s %4s %4s%n",
+                              "ID", "Name", "Pos", "Country", "City", "Birthdate",
+                              "Ht(cm)", "Wt(lb)", "GP", "G", "A");
+            System.out.println("-".repeat(110));
+            boolean found = false;
             while (rs.next()) {
-                System.out.println(rs.getString("name"));
+                found = true;
+                String city      = rs.getString("birthCity");
+                String birthdate = rs.getString("birthDate");
+                System.out.printf("%-10d %-22s %-4s %-12s %-18s %-12s %7.1f %7d %4d %4d %4d%n",
+                    rs.getLong("playerID"),
+                    rs.getString("first") + " " + rs.getString("last"),
+                    rs.getString("position"),
+                    rs.getString("birthCountry"),
+                    city      != null ? city      : "-",
+                    birthdate != null ? birthdate.substring(0, 10) : "-",
+                    rs.getDouble("heightCM"),
+                    rs.getInt("weight"),
+                    rs.getInt("career_gp"),
+                    rs.getInt("career_goals"),
+                    rs.getInt("career_assists"));
             }
-            */
-            System.out.println("Executing Query 2 with arg: " + inputArg + " ... (To be implemented)");
+            if (!found) System.out.println("  No players found matching \"" + inputArg + "\".");
+            System.out.println();
         } catch (Exception e) {
             e.printStackTrace(System.out);
         }
     }
 
     public void query3() {
-        System.out.println("Executing Query 3... (To be implemented)");
+        String sql =
+            "SELECT p.first, p.last, " +
+            "       COUNT(*) AS multi_goal_games, " +
+            "       SUM(ss.evenGoals + ss.shortHandedGoals + ss.powerPlayGoals) AS goals_in_those_games " +
+            "FROM Skater_Stats ss " +
+            "JOIN Players p ON ss.playerID = p.playerID " +
+            "WHERE (ss.evenGoals + ss.shortHandedGoals + ss.powerPlayGoals) >= 2 " +
+            "GROUP BY ss.playerID " +
+            "ORDER BY multi_goal_games DESC " +
+            "LIMIT 15";
+        try {
+            PreparedStatement ps = connection.prepareStatement(sql);
+            ResultSet rs = ps.executeQuery();
+            System.out.println("\n=== Q3: Multi-Goal Game Specialists (2+ goals in one game) ===");
+            System.out.printf("%-4s %-22s %16s %22s%n",
+                              "#", "Player", "Multi-Goal Games", "Goals in Those Games");
+            System.out.println("-".repeat(66));
+            int rank = 1;
+            while (rs.next()) {
+                System.out.printf("%-4d %-22s %16d %22d%n",
+                    rank++,
+                    rs.getString("first") + " " + rs.getString("last"),
+                    rs.getInt("multi_goal_games"),
+                    rs.getInt("goals_in_those_games"));
+            }
+            System.out.println();
+        } catch (Exception e) {
+            e.printStackTrace(System.out);
+        }
     }
-
+    // -----------------------------------------------------------------------
+    // Q4 - Best two-way forwards (composite score: G + A + Tkw + Blk)
+    // -----------------------------------------------------------------------
     public void query4() {
-        System.out.println("Executing Query 4... (To be implemented)");
+        String sql =
+            "SELECT p.first, p.last, p.position, " +
+            "       SUM(ss.evenGoals + ss.shortHandedGoals + ss.powerPlayGoals) AS goals, " +
+            "       SUM(ss.assists)   AS assists, " +
+            "       SUM(ss.takeaways) AS tkw, " +
+            "       SUM(ss.blocked)   AS blk, " +
+            "       SUM(ss.evenGoals + ss.shortHandedGoals + ss.powerPlayGoals " +
+            "           + ss.assists + ss.takeaways + ss.blocked) AS composite " +
+            "FROM Skater_Stats ss " +
+            "JOIN Players p ON ss.playerID = p.playerID " +
+            "WHERE p.position IN ('C', 'LW', 'RW') " +
+            "GROUP BY ss.playerID " +
+            "ORDER BY composite DESC " +
+            "LIMIT 15";
+        try {
+            PreparedStatement ps = connection.prepareStatement(sql);
+            ResultSet rs = ps.executeQuery();
+            System.out.println("\n=== Q4: Best Two-Way Forwards (Score = G + A + Takeaways + Blocked) ===");
+            System.out.printf("%-4s %-22s %-4s %6s %6s %6s %6s %10s%n",
+                              "#", "Player", "Pos", "G", "A", "Tkw", "Blk", "Composite");
+            System.out.println("-".repeat(68));
+            int rank = 1;
+            while (rs.next()) {
+                System.out.printf("%-4d %-22s %-4s %6d %6d %6d %6d %10d%n",
+                    rank++,
+                    rs.getString("first") + " " + rs.getString("last"),
+                    rs.getString("position"),
+                    rs.getInt("goals"),
+                    rs.getInt("assists"),
+                    rs.getInt("tkw"),
+                    rs.getInt("blk"),
+                    rs.getInt("composite"));
+            }
+            System.out.println();
+        } catch (Exception e) {
+            e.printStackTrace(System.out);
+        }
     }
-
+    // -----------------------------------------------------------------------
+    // Q5 - Goalies who outperformed league average save percentage
+    // -----------------------------------------------------------------------
     public void query5() {
-        System.out.println("Executing Query 5... (To be implemented)");
+        String sql =
+            "SELECT p.first, p.last, " +
+            "       COUNT(DISTINCT gs.gameID) AS gp, " +
+            "       SUM(gs.shots) AS shots_faced, " +
+            "       SUM(gs.saves) AS saves, " +
+            "       ROUND(100.0 * SUM(gs.saves) / NULLIF(SUM(gs.shots), 0), 2) AS save_pct, " +
+            "       ROUND((100.0 * SUM(gs.saves) / NULLIF(SUM(gs.shots), 0)) " +
+            "           - (SELECT 100.0 * SUM(s2.saves) / NULLIF(SUM(s2.shots), 0) " +
+            "              FROM Goalie_Stats s2), 2) AS above_avg " +
+            "FROM Goalie_Stats gs " +
+            "JOIN Players p ON gs.playerID = p.playerID " +
+            "GROUP BY gs.playerID " +
+            "HAVING gp >= 10 " +
+            "ORDER BY above_avg DESC " +
+            "LIMIT 15";
+        try {
+            PreparedStatement ps = connection.prepareStatement(sql);
+            ResultSet rs = ps.executeQuery();
+            System.out.println("\n=== Q5: Goalies Outperforming League Average Save% (min 10 GP) ===");
+            System.out.printf("%-4s %-22s %4s %12s %7s %9s %11s%n",
+                              "#", "Goalie", "GP", "Shots Faced", "Saves", "Save%", "+/- Avg%");
+            System.out.println("-".repeat(72));
+            int rank = 1;
+            while (rs.next()) {
+                System.out.printf("%-4d %-22s %4d %12d %7d %9.2f %11.2f%n",
+                    rank++,
+                    rs.getString("first") + " " + rs.getString("last"),
+                    rs.getInt("gp"),
+                    rs.getInt("shots_faced"),
+                    rs.getInt("saves"),
+                    rs.getDouble("save_pct"),
+                    rs.getDouble("above_avg"));
+            }
+            System.out.println();
+        } catch (Exception e) {
+            e.printStackTrace(System.out);
+        }
     }
 
     public void query6() {
@@ -190,4 +369,5 @@ class MyDatabase {
     public void query12() {
         System.out.println("Executing Query 12... (To be implemented)");
     }
+
 }
