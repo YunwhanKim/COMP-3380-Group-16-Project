@@ -70,6 +70,7 @@ public class NHLDatabaseInterface {
 
             System.out.print("nhl_db > ");
             line = console.nextLine();
+            arg = "";
         }
 
         console.close();
@@ -101,16 +102,23 @@ class MyDatabase {
 
     public MyDatabase() {
         try {
-            String url = "jdbc:mariadb://uranium.cs.umanitoba.ca:3306/putID_db";
-            String user = "ID";
-            String password = "PASSWORD";
+            String url = "jdbc:sqlserver://uranium.cs.umanitoba.ca:1433;" +
+                         "databaseName=cs338016;" +
+                         "encrypt=true;" +
+                         "trustServerCertificate=true;";
+            String user = "kimy10";
+            String password = "7900706";
 
-            connection = DriverManager.getConnection(url, user, password);
-            System.out.println("Successfully connected to Uranium!");
+            this.connection = DriverManager.getConnection(url, user, password);
+            
+            if (this.connection != null) {
+                System.out.println("Successfully connected to Uranium (cs338016)!");
+            }
             
         } catch (Exception e) {
-            System.out.println("Connection failed. Are you connected to the UM VPN?");
-            e.printStackTrace(System.out);
+            System.out.println("Connection failed!");
+            System.out.println("Checklist: 1. VPN connected? 2. Credentials correct? 3. Driver added?");
+            e.printStackTrace();
         }
     }
 
@@ -118,39 +126,40 @@ class MyDatabase {
         System.out.println("Wiping and repopulating database...");
         // TODO: 
         System.out.println("Done.");
-
     }
+
     // -----------------------------------------------------------------------
     // Q1 - Top 15 goal-scorers of the 2019-20 season
+    // FIX: CAST(... AS UNSIGNED) -> CAST(... AS BIGINT)  [UNSIGNED does not exist in SQL Server]
+    //      GROUP BY must include all non-aggregate SELECT columns
+    // -----------------------------------------------------------------------
+    // -----------------------------------------------------------------------
+    // Q1 - Top 15 goal-scorers of the 2019-20 season (Team 출력 제외 버전)
     // -----------------------------------------------------------------------
     public void query1() {
-         String sql =
-            "SELECT p.first, p.last, t.abbreviation AS team, " +
+        String sql =
+            "SELECT TOP 15 p.first, p.last, " +
             "       SUM(ss.evenGoals + ss.shortHandedGoals + ss.powerPlayGoals) AS goals, " +
             "       SUM(ss.assists) AS assists, " +
             "       SUM(ss.evenGoals + ss.shortHandedGoals + ss.powerPlayGoals + ss.assists) AS points, " +
             "       COUNT(DISTINCT ss.gameID) AS gp " +
             "FROM Skater_Stats ss " +
-            "JOIN Players p     ON ss.playerID = p.playerID " +
-            "JOIN Team_Stats ts ON ss.gameID   = ts.gameID " +
-            "JOIN Teams t       ON ts.teamID   = t.teamID " +
-            "WHERE CAST(ss.gameID / 1000000 AS UNSIGNED) = 2019 " +
-            "GROUP BY ss.playerID, t.teamID " +
-            "ORDER BY goals DESC " +
-            "LIMIT 15";
+            "JOIN Players p ON ss.playerID = p.playerID " +
+            "WHERE CAST(ss.gameID / 1000000 AS BIGINT) = 2019 " +
+            "GROUP BY ss.playerID, p.first, p.last " +
+            "ORDER BY goals DESC";
         try {
             PreparedStatement ps = connection.prepareStatement(sql);
             ResultSet rs = ps.executeQuery();
             System.out.println("\n=== Q1: Top 15 Goal-Scorers - 2019-20 Season ===");
-            System.out.printf("%-4s %-22s %-5s %5s %5s %6s %4s%n",
-                              "#", "Player", "Team", "G", "A", "Pts", "GP");
-            System.out.println("-".repeat(52));
+            System.out.printf("%-4s %-22s %5s %5s %6s %4s%n",
+                              "#", "Player", "G", "A", "Pts", "GP");
+            System.out.println("-".repeat(48));
             int rank = 1;
             while (rs.next()) {
-                System.out.printf("%-4d %-22s %-5s %5d %5d %6d %4d%n",
+                System.out.printf("%-4d %-22s %5d %5d %6d %4d%n",
                     rank++,
                     rs.getString("first") + " " + rs.getString("last"),
-                    rs.getString("team"),
                     rs.getInt("goals"),
                     rs.getInt("assists"),
                     rs.getInt("points"),
@@ -161,11 +170,12 @@ class MyDatabase {
             e.printStackTrace(System.out);
         }
     }
+
     // -----------------------------------------------------------------------
     // Q2 - Player lookup by name (partial match) or numeric player ID
+    // FIX: GROUP BY must include all non-aggregate SELECT columns (SQL Server strict mode)
     // -----------------------------------------------------------------------
     public void query2(String inputArg) {
-        // Detect if argument is purely numeric -> treat as playerID
         boolean isId = inputArg.matches("\\d+");
         String sql;
         if (isId) {
@@ -177,9 +187,10 @@ class MyDatabase {
                   "FROM Players p " +
                   "LEFT JOIN Skater_Stats ss ON p.playerID = ss.playerID " +
                   "WHERE p.playerID = ? " +
-                  "GROUP BY p.playerID";
+                  "GROUP BY p.playerID, p.first, p.last, p.position, p.birthCountry, " +
+                  "         p.birthCity, p.birthDate, p.heightCM, p.weight";
         } else {
-            sql = "SELECT p.playerID, p.first, p.last, p.position, p.birthCountry, " +
+            sql = "SELECT TOP 10 p.playerID, p.first, p.last, p.position, p.birthCountry, " +
                   "       p.birthCity, p.birthDate, p.heightCM, p.weight, " +
                   "       SUM(ss.evenGoals + ss.shortHandedGoals + ss.powerPlayGoals) AS career_goals, " +
                   "       SUM(ss.assists) AS career_assists, " +
@@ -187,9 +198,9 @@ class MyDatabase {
                   "FROM Players p " +
                   "LEFT JOIN Skater_Stats ss ON p.playerID = ss.playerID " +
                   "WHERE CONCAT(p.first, ' ', p.last) LIKE ? " +
-                  "GROUP BY p.playerID " +
-                  "ORDER BY p.last " +
-                  "LIMIT 10";
+                  "GROUP BY p.playerID, p.first, p.last, p.position, p.birthCountry, " +
+                  "         p.birthCity, p.birthDate, p.heightCM, p.weight " +
+                  "ORDER BY p.last";
         }
         try {
             PreparedStatement ps = connection.prepareStatement(sql);
@@ -226,17 +237,20 @@ class MyDatabase {
         }
     }
 
+    // -----------------------------------------------------------------------
+    // Q3 - Multi-goal game specialists (2+ goals in one game)
+    // FIX: GROUP BY must include all non-aggregate SELECT columns
+    // -----------------------------------------------------------------------
     public void query3() {
         String sql =
-            "SELECT p.first, p.last, " +
+            "SELECT TOP 15 p.first, p.last, " +
             "       COUNT(*) AS multi_goal_games, " +
             "       SUM(ss.evenGoals + ss.shortHandedGoals + ss.powerPlayGoals) AS goals_in_those_games " +
             "FROM Skater_Stats ss " +
             "JOIN Players p ON ss.playerID = p.playerID " +
             "WHERE (ss.evenGoals + ss.shortHandedGoals + ss.powerPlayGoals) >= 2 " +
-            "GROUP BY ss.playerID " +
-            "ORDER BY multi_goal_games DESC " +
-            "LIMIT 15";
+            "GROUP BY ss.playerID, p.first, p.last " +
+            "ORDER BY multi_goal_games DESC";
         try {
             PreparedStatement ps = connection.prepareStatement(sql);
             ResultSet rs = ps.executeQuery();
@@ -257,12 +271,14 @@ class MyDatabase {
             e.printStackTrace(System.out);
         }
     }
+
     // -----------------------------------------------------------------------
     // Q4 - Best two-way forwards (composite score: G + A + Tkw + Blk)
+    // FIX: GROUP BY must include all non-aggregate SELECT columns
     // -----------------------------------------------------------------------
     public void query4() {
         String sql =
-            "SELECT p.first, p.last, p.position, " +
+            "SELECT TOP 15 p.first, p.last, p.position, " +
             "       SUM(ss.evenGoals + ss.shortHandedGoals + ss.powerPlayGoals) AS goals, " +
             "       SUM(ss.assists)   AS assists, " +
             "       SUM(ss.takeaways) AS tkw, " +
@@ -272,9 +288,8 @@ class MyDatabase {
             "FROM Skater_Stats ss " +
             "JOIN Players p ON ss.playerID = p.playerID " +
             "WHERE p.position IN ('C', 'LW', 'RW') " +
-            "GROUP BY ss.playerID " +
-            "ORDER BY composite DESC " +
-            "LIMIT 15";
+            "GROUP BY ss.playerID, p.first, p.last, p.position " +
+            "ORDER BY composite DESC";
         try {
             PreparedStatement ps = connection.prepareStatement(sql);
             ResultSet rs = ps.executeQuery();
@@ -299,12 +314,15 @@ class MyDatabase {
             e.printStackTrace(System.out);
         }
     }
+
     // -----------------------------------------------------------------------
     // Q5 - Goalies who outperformed league average save percentage
+    // FIX: HAVING alias 'gp' -> HAVING COUNT(DISTINCT gs.gameID)  [SQL Server does not allow aliases in HAVING]
+    //      GROUP BY must include all non-aggregate SELECT columns
     // -----------------------------------------------------------------------
     public void query5() {
         String sql =
-            "SELECT p.first, p.last, " +
+            "SELECT TOP 15 p.first, p.last, " +
             "       COUNT(DISTINCT gs.gameID) AS gp, " +
             "       SUM(gs.shots) AS shots_faced, " +
             "       SUM(gs.saves) AS saves, " +
@@ -314,10 +332,9 @@ class MyDatabase {
             "              FROM Goalie_Stats s2), 2) AS above_avg " +
             "FROM Goalie_Stats gs " +
             "JOIN Players p ON gs.playerID = p.playerID " +
-            "GROUP BY gs.playerID " +
-            "HAVING gp >= 10 " +
-            "ORDER BY above_avg DESC " +
-            "LIMIT 15";
+            "GROUP BY gs.playerID, p.first, p.last " +
+            "HAVING COUNT(DISTINCT gs.gameID) >= 10 " +
+            "ORDER BY above_avg DESC";
         try {
             PreparedStatement ps = connection.prepareStatement(sql);
             ResultSet rs = ps.executeQuery();
@@ -369,5 +386,4 @@ class MyDatabase {
     public void query12() {
         System.out.println("Executing Query 12... (To be implemented)");
     }
-
 }
