@@ -372,15 +372,130 @@ class MyDatabase {
     }
 
     public void query9() {
-        System.out.println("Executing Query 9... (To be implemented)");
+        String sql =
+            "SELECT TOP 15 r.RID, r.name, r.type, " +
+            "       COUNT(DISTINCT o.gameID) AS games_worked, " +
+            "       ROUND(AVG(CAST(gp.total_pim AS FLOAT)), 2) AS avg_pim_per_game " +
+            "FROM Officites o " +
+            "JOIN Referee r ON o.RID = r.RID " +
+            "JOIN ( " +
+            "    SELECT gameID, SUM(PIM) AS total_pim " +
+            "    FROM Team_Stats " +
+            "    GROUP BY gameID " +
+            ") gp ON o.gameID = gp.gameID " +
+            "GROUP BY r.RID, r.name, r.type " +
+            "HAVING COUNT(DISTINCT o.gameID) >= 5 " +
+            "ORDER BY avg_pim_per_game DESC, games_worked DESC";
+    
+        try {
+            PreparedStatement ps = connection.prepareStatement(sql);
+            ResultSet rs = ps.executeQuery();
+    
+            System.out.println("\n=== Q9: Strictest and Most Lenient Referees by Avg PIM per Game ===");
+            System.out.printf("%-4s %-6s %-28s %-12s %8s %12s%n",
+                    "#", "RID", "Referee", "Type", "Games", "Avg PIM");
+            System.out.println("-".repeat(78));
+    
+            int rank = 1;
+            while (rs.next()) {
+                System.out.printf("%-4d %-6d %-28s %-12s %8d %12.2f%n",
+                        rank++,
+                        rs.getInt("RID"),
+                        rs.getString("name"),
+                        rs.getString("type"),
+                        rs.getInt("games_worked"),
+                        rs.getDouble("avg_pim_per_game"));
+            }
+            System.out.println();
+        } catch (Exception e) {
+            e.printStackTrace(System.out);
+        }
     }
 
     public void query10() {
-        System.out.println("Executing Query 10... (To be implemented)");
+        String sql =
+            "SELECT TOP 15 r.RID, r.name, r.type, " +
+            "       COUNT(DISTINCT o.gameID) AS games_worked, " +
+            "       ROUND(AVG(CASE WHEN ts.homeOrAway = 1 THEN CAST(ts.PIM AS FLOAT) END), 2) AS avg_home_pim, " +
+            "       ROUND(AVG(CASE WHEN ts.homeOrAway = 0 THEN CAST(ts.PIM AS FLOAT) END), 2) AS avg_away_pim, " +
+            "       ROUND( " +
+            "           AVG(CASE WHEN ts.homeOrAway = 1 THEN CAST(ts.PIM AS FLOAT) END) - " +
+            "           AVG(CASE WHEN ts.homeOrAway = 0 THEN CAST(ts.PIM AS FLOAT) END), 2 " +
+            "       ) AS home_minus_away " +
+            "FROM Officites o " +
+            "JOIN Referee r ON o.RID = r.RID " +
+            "JOIN Team_Stats ts ON o.gameID = ts.gameID " +
+            "GROUP BY r.RID, r.name, r.type " +
+            "HAVING COUNT(DISTINCT o.gameID) >= 5 " +
+            "ORDER BY home_minus_away DESC, games_worked DESC";
+    
+        try {
+            PreparedStatement ps = connection.prepareStatement(sql);
+            ResultSet rs = ps.executeQuery();
+    
+            System.out.println("\n=== Q10: Referee Home-Ice Bias (Home vs Away PIM Differential) ===");
+            System.out.printf("%-4s %-6s %-28s %-12s %8s %10s %10s %12s%n",
+                    "#", "RID", "Referee", "Type", "Games", "Home PIM", "Away PIM", "H-A Diff");
+            System.out.println("-".repeat(98));
+    
+            int rank = 1;
+            while (rs.next()) {
+                System.out.printf("%-4d %-6d %-28s %-12s %8d %10.2f %10.2f %12.2f%n",
+                        rank++,
+                        rs.getInt("RID"),
+                        rs.getString("name"),
+                        rs.getString("type"),
+                        rs.getInt("games_worked"),
+                        rs.getDouble("avg_home_pim"),
+                        rs.getDouble("avg_away_pim"),
+                        rs.getDouble("home_minus_away"));
+            }
+            System.out.println();
+        } catch (Exception e) {
+            e.printStackTrace(System.out);
+        }
     }
 
     public void query11() {
-        System.out.println("Executing Query 11... (To be implemented)");
+        String sql =
+            "SELECT TOP 10 g.gameID, g.DateTimeGMT, g.type, g.homeGoals, g.awayGoals, " +
+            "       COUNT(*) AS total_events, " +
+            "       ABS(g.homeGoals - g.awayGoals) AS goal_margin " +
+            "FROM Plays p " +
+            "JOIN Games g ON p.gameID = g.gameID " +
+            "GROUP BY g.gameID, g.DateTimeGMT, g.type, g.homeGoals, g.awayGoals " +
+            "ORDER BY total_events DESC, goal_margin ASC";
+    
+        try {
+            PreparedStatement ps = connection.prepareStatement(sql);
+            ResultSet rs = ps.executeQuery();
+    
+            System.out.println("\n=== Q11: Top 10 Most Chaotic Games by Total Play Events ===");
+            System.out.printf("%-4s %-12s %-22s %-10s %-8s %-8s %-12s %8s%n",
+                    "#", "GameID", "Date", "Type", "HomeG", "AwayG", "Events", "Margin");
+            System.out.println("-".repeat(96));
+    
+            int rank = 1;
+            while (rs.next()) {
+                String date = rs.getString("DateTimeGMT");
+                if (date != null && date.length() > 19) {
+                    date = date.substring(0, 19);
+                }
+    
+                System.out.printf("%-4d %-12d %-22s %-10s %-8d %-8d %-12d %8d%n",
+                        rank++,
+                        rs.getInt("gameID"),
+                        date != null ? date : "-",
+                        rs.getString("type"),
+                        rs.getInt("homeGoals"),
+                        rs.getInt("awayGoals"),
+                        rs.getInt("total_events"),
+                        rs.getInt("goal_margin"));
+            }
+            System.out.println();
+        } catch (Exception e) {
+            e.printStackTrace(System.out);
+        }
     }
 
     public void query12() {
