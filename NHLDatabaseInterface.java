@@ -112,6 +112,28 @@ class MyDatabase {
         System.out.println("-".repeat(header.length()));
     }
 
+    /**
+     * Pagination helper. Call once per printed data row with the current
+     * 1-based row number. Every PAGE_SIZE rows it pauses and asks:
+     *   N  -> print next page
+     *   S  -> stop printing (return false)
+     * Returns true while the caller should keep printing.
+     */
+    private static final int     PAGE_SIZE = 30;
+    private static final Scanner PAGER     = new Scanner(System.in);
+
+    private static boolean paginate(int rowNum) {
+        if (rowNum % PAGE_SIZE != 0) return true;
+        System.out.println();
+        System.out.print("--- " + rowNum + " rows shown. [N] Next page  [S] Stop --- ");
+        while (true) {
+            String input = PAGER.nextLine().trim().toUpperCase();
+            if (input.equals("N")) { System.out.println(); return true;  }
+            if (input.equals("S")) { System.out.println(); return false; }
+            System.out.print("    Please enter N or S: ");
+        }
+    }
+
     public void resetDatabase() {
         System.out.println("Wiping all data...");
         String[] truncates = {
@@ -179,6 +201,7 @@ class MyDatabase {
                     rs.getInt("ppg"),
                     rs.getInt("shg"),
                     rs.getInt("gp"));
+                if (!paginate(rank - 1)) break;
             }
             System.out.println();
         } catch (SQLException e) {
@@ -247,8 +270,10 @@ class MyDatabase {
                         "Birthdate", "Ht(cm)", "Wt", "GP", "G", "A", "Saves", "Wins");
 
             boolean found = false;
+            int rowNum2 = 0;
             while (rs.next()) {
                 found = true;
+                rowNum2++;
                 String city = rs.getString("birthCity");
                 String prov = rs.getString("birthStateProvince");
                 String loc  = (city != null ? city : "") +
@@ -274,6 +299,7 @@ class MyDatabase {
                     rs.getInt("career_assists"),
                     rs.getInt("career_saves"),
                     rs.getInt("career_wins"));
+                if (!paginate(rowNum2)) break;
             }
             if (!found) System.out.println("  No players found matching \"" + inputArg + "\".");
             System.out.println();
@@ -299,17 +325,18 @@ class MyDatabase {
             ResultSet rs = ps.executeQuery();
             System.out.println();
             System.out.println("=== Q3: Multi-Goal Game Specialists (2+ Goals in One Game) ===");
-            printHeader("%-4s %-22s %-4s %9s %12s %9s",
-                        "#", "Player", "Pos", "Multi-G", "Goals (in those)", "Best Game");
+            printHeader("%-4s %-22s %-4s %10s %22s %14s",
+                        "#", "Player", "Pos", "2+G Games", "Total G (in 2+G games)", "Best Single Game");
             int rank = 1;
             while (rs.next()) {
-                System.out.printf("%-4d %-22s %-4s %9d %12d %9d%n",
+                System.out.printf("%-4d %-22s %-4s %10d %22d %14d%n",
                     rank++,
                     rs.getString("first") + " " + rs.getString("last"),
                     rs.getString("position"),
                     rs.getInt("multi_goal_games"),
                     rs.getInt("goals_in_those_games"),
                     rs.getInt("best_single_game"));
+                if (!paginate(rank - 1)) break;
             }
             System.out.println();
         } catch (SQLException e) {
@@ -353,6 +380,7 @@ class MyDatabase {
                     rs.getInt("blk"),
                     rs.getInt("plus_minus"),
                     rs.getInt("composite"));
+                if (!paginate(rank - 1)) break;
             }
             System.out.println();
         } catch (SQLException e) {
@@ -394,6 +422,7 @@ class MyDatabase {
                     rs.getInt("saves"),
                     rs.getDouble("save_pct"),
                     rs.getDouble("above_avg"));
+                if (!paginate(rank - 1)) break;
             }
             System.out.println();
         } catch (SQLException e) {
@@ -433,6 +462,7 @@ class MyDatabase {
                     rs.getDouble("avg_shots_in_stolen"),
                     rs.getInt("max_shots_in_stolen"),
                     rs.getDouble("avg_save_pct"));
+                if (!paginate(rank - 1)) break;
             }
             if (!any) System.out.println("  No qualifying stolen wins found (check outcome values contain 'win').");
             System.out.println();
@@ -480,6 +510,7 @@ class MyDatabase {
                     rs.getDouble("total_ice_sec") / 60.0,
                     rs.getDouble("goals_per_60"),
                     rs.getInt("gp"));
+                if (!paginate(rank - 1)) break;
             }
             if (!any) System.out.println("  No lines found with >= 150 minutes of ice time.");
             System.out.println();
@@ -524,6 +555,7 @@ class MyDatabase {
                     rs.getDouble("total_ice_sec") / 60.0,
                     rs.getInt("goals"),
                     rs.getInt("shots"));
+                if (!paginate(rank - 1)) break;
             }
             if (!any) System.out.println("  No data found.");
             System.out.println();
@@ -567,6 +599,7 @@ class MyDatabase {
                     rs.getInt("games_officiated"),
                     rs.getDouble("avg_pim_per_game"),
                     rs.getInt("total_pim_called"));
+                if (!paginate(rank - 1)) break;
             }
             if (!any) System.out.println("  No data found.");
             System.out.println();
@@ -611,6 +644,7 @@ class MyDatabase {
                     rs.getDouble("avg_home_pim"),
                     rs.getDouble("avg_away_pim"),
                     rs.getDouble("home_minus_away"));
+                if (!paginate(rank - 1)) break;
             }
             if (!any) System.out.println("  No data found (check homeOrAway values: 'home'/'away').");
             System.out.println();
@@ -712,6 +746,7 @@ class MyDatabase {
                     rs.getInt("assists"),
                     rs.getInt("points"),
                     rs.getInt("gp"));
+                if (!paginate(rank - 1)) break;
             }
             if (!any) System.out.println("  No data found for the 2019-20 season.");
             System.out.println();
